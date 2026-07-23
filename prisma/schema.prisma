@@ -1,0 +1,143 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  password      String         // bcrypt 哈希密码
+  name          String?
+  backgroundImage String?      // 用户自定义背景图片路径
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  documents     PdfDocument[]  // 用户上传的文档
+  accounts      Account[]
+  sessions      Session[]
+
+  @@index([email])
+}
+
+// NextAuth Account 模型
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth Session 模型
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// NextAuth VerificationToken 模型
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// PDF 文档元信息
+model PdfDocument {
+  id           String         @id @default(cuid())
+  userId       String         // 所属用户 ID
+  filename     String         // 存储文件名（唯一标识）
+  originalName String         // 用户上传的原始文件名
+  filePath     String         // 文件在服务器上的路径
+  pageCount    Int            // 总页数
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pages        PdfPage[]      // 关联的页面
+  conversations Conversation[] // 关联的对话
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// PDF 页面文本
+// 每页文本单独存储，便于按需读取
+model PdfPage {
+  id         String      @id @default(cuid())
+  documentId String
+  pageNumber Int         // 页码，从 1 开始
+  text       String      // 该页提取的文本内容
+
+  document   PdfDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, pageNumber])
+  @@index([documentId, pageNumber])
+}
+
+// 对话会话
+model Conversation {
+  id         String      @id @default(cuid())
+  documentId String
+  title      String      // 对话标题
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  document   PdfDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  messages   Message[]   // 该对话的所有消息
+
+  @@index([documentId])
+}
+
+// 消息节点（支持树形分支结构）
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  parentId       String?      // 父消息 ID，null 表示根消息
+  role           String       // 'user' | 'assistant'
+  content        String       // 消息内容
+
+  // 上下文信息
+  contextType    String?      // 'current_page' | 'surrounding_pages' | 'selected_text' | 'page_range'
+  contextPayload String?      // JSON 格式存储上下文参数，例如 {"pageNumber": 5} 或 {"startPage": 1, "endPage": 3}
+  contextTextSnapshot String? // 当时使用的 PDF 文本快照，用于复现
+
+  model          String?      // 使用的 AI 模型名称
+
+  // 分支显示元数据
+  displayName    String?      // 用户自定义节点名称
+  color          String?      // 节点颜色，例如 blue, green, yellow, purple, red
+
+  createdAt      DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  parent         Message?     @relation("MessageTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children       Message[]    @relation("MessageTree")
+
+  @@index([conversationId])
+  @@index([parentId])
+  @@index([createdAt])
+}

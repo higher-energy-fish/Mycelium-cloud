@@ -1,0 +1,27 @@
+# Python 虚拟环境（含指向宿主机的符号链接，会导致 Turbopack 构建 panic）
+venv/
+venv.*/
+
+# Node 依赖与构建产物（镜像内会重新安装/构建）
+node_modules/
+.next/
+out/
+build/
+
+# 环境变量与密钥（不应打进镜像）
+.env
+.env.*
+!.env.docker.example
+
+# 数据库与用户上传（应通过 volume 挂载持久化）
+prisma/*.db
+prisma/*.db-journal
+public/uploads/*
+public/backgrounds/*
+
+# 开发/版本控制杂项
+.git/
+.gitignore
+*.log
+.DS_Store
+backups/
