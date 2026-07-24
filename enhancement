@@ -1,0 +1,258 @@
+## Overview
+
+This issue tracks several important improvements planned for upcoming versions.  
+The current version is functional, but there are still areas that need refinement in UI/UX, conversation management, PDF interaction, context control, and API model support.
+
+这些问题不一定需要在同一个版本中全部完成，可以按优先级逐步拆分和实现。
+
+---
+
+## 1. UI Display and Layout Improvements
+
+### Current Problems
+
+The current UI still needs further polishing in several areas:
+
+- Color palette is not fully consistent across pages and components.
+- Some layouts may look unbalanced or visually crowded.
+- Spacing, alignment, and typography need refinement.
+- Different UI states, such as empty states, loading states, and error states, may not be visually consistent.
+- Mobile or smaller-screen layout may still have display issues.
+
+### Expected Improvements
+
+- Improve overall visual consistency.
+- Refine colors, spacing, typography, and layout hierarchy.
+- Optimize the main interface for better readability and usability.
+- Improve responsive layout behavior.
+- Add or improve empty/loading/error states where necessary.
+
+---
+
+## 2. Conversation Tree and Document Management Improvements
+
+### Features to Improve
+
+- Improve the "create new conversation tree" workflow.
+- Improve node deletion behavior in the conversation tree.
+- Add or improve document renaming functionality on the main interface.
+
+### Expected Behavior
+
+- Users should be able to create new conversation trees more clearly and reliably.
+- Users should be able to delete conversation nodes safely.
+- Deleting a node should have predictable behavior:
+  - Confirm before deletion.
+  - Handle child nodes properly.
+  - Avoid accidental loss of important conversation history.
+- Users should be able to rename documents directly from the main interface.
+
+### Notes
+
+Node deletion may require further design decisions, such as:
+
+- Whether deleting a parent node also deletes all child nodes.
+- Whether deleted nodes can be restored.
+- Whether the system should warn users before deleting branches.
+
+---
+
+## 3. Context Transmission Controls
+
+### Current Problems
+
+The current context transmission behavior needs more flexible user control.
+
+### Features to Add
+
+- Add an option to disable automatic previous-context transmission.
+- Add a setting to control the length of previous context sent to the model.
+- Add an option to disable automatic PDF content transmission.
+- Add a feature to include context by PDF page range, such as "include previous/next N pages" or "include current page ± N pages".
+
+### Expected Behavior
+
+Users should be able to control what context is sent to the AI model, including:
+
+- Whether previous conversation history is automatically included.
+- How much conversation history is included.
+- Whether PDF content is automatically included.
+- Whether context should be selected based on PDF page position.
+
+### Possible Settings
+
+Examples:
+
+- `Auto include conversation history`: on/off
+- `Conversation context length`: short / medium / long / custom token limit
+- `Auto include PDF context`: on/off
+- `PDF context range`: current page only / current page ± 1 / current page ± N
+
+### Goal
+
+Improve transparency and controllability of AI interactions, especially when working with long PDFs or sensitive documents.
+
+---
+
+## 4. PDF Annotation and Temporary AI Interaction Annotations
+
+### Features to Add
+
+- Add PDF annotation editing functionality.
+- Support creating, editing, and deleting annotations.
+- Allow temporary PDF annotations that can be used for AI interaction without permanently changing the document.
+- Allow users to select annotated content as context for AI questions.
+
+### Expected Behavior
+
+Users should be able to:
+
+- Highlight or mark parts of a PDF.
+- Edit existing annotations.
+- Delete annotations.
+- Temporarily mark PDF content for AI interaction.
+- Ask AI questions based on selected or annotated PDF regions.
+
+### Notes
+
+There may be two types of annotations:
+
+1. Persistent annotations  
+   - Saved with the document.
+   - Visible when reopening the PDF.
+
+2. Temporary interaction annotations  
+   - Used only for the current AI interaction.
+   - Not necessarily saved permanently.
+   - Useful for quick question-answer workflows.
+
+---
+
+## 5. Region-Based Conversation Feature
+
+### Feature Description
+
+Add a feature that allows users to select or capture a specific region of the PDF/page and start a conversation based on that selected area.
+
+### Expected Behavior
+
+Users should be able to:
+
+- Select a rectangular area on the PDF.
+- Use the selected region as input context for AI.
+- Ask questions about the selected region.
+- Optionally combine the selected region with nearby text or page context.
+
+### Possible Use Cases
+
+- Ask about a chart, table, formula, paragraph, or figure.
+- Extract information from a selected PDF area.
+- Ask AI to explain a visual or text-heavy region.
+- Use selected area as temporary context for a conversation.
+
+### Notes
+
+This may require OCR or image-based model support depending on the selected content type.
+
+---
+
+## 6. Public API Support Based on Custom API Model Configuration
+
+### Current State
+
+The system supports custom API model configuration or is planned to support it.
+
+### Feature to Add
+
+In addition to user-defined custom API models, provide a built-in public API option.
+
+### Expected Behavior
+
+Users should be able to choose between:
+
+- Custom API provider configured by the user.
+- Public/shared API provider provided by the platform.
+
+### Possible Model Configuration Options
+
+- Custom API base URL
+- Custom API key
+- Model name
+- Public default model
+- Public fallback model
+- Provider selection
+
+### Goal
+
+Make the application easier to use for users who do not want to configure their own API keys, while still preserving flexibility for advanced users.
+
+---
+
+## Priority Suggestions
+
+The following priority order may be considered:
+
+1. UI display and layout improvements.
+2. Conversation tree creation, node deletion, and document renaming.
+3. Context transmission controls.
+4. PDF annotation and temporary AI annotation interaction.
+5. Region-based conversation.
+6. Public API support.
+
+---
+
+## Checklist
+
+### UI / UX
+
+- [ ] Refine color system.
+- [ ] Improve layout consistency.
+- [ ] Improve typography and spacing.
+- [ ] Improve empty/loading/error states.
+- [ ] Improve responsive layout.
+
+### Conversation Tree / Document Management
+
+- [ ] Improve new conversation tree creation.
+- [ ] Improve node deletion behavior.
+- [ ] Add deletion confirmation.
+- [ ] Define child-node deletion behavior.
+- [ ] Add document renaming on main interface.
+
+### Context Controls
+
+- [ ] Add switch to disable automatic previous-context transmission.
+- [ ] Add setting to control previous-context length.
+- [ ] Add switch to disable automatic PDF context transmission.
+- [ ] Add PDF context range setting.
+- [ ] Support current page ± N pages as context.
+
+### PDF Annotation
+
+- [ ] Add PDF annotation creation.
+- [ ] Add annotation editing.
+- [ ] Add annotation deletion.
+- [ ] Add temporary annotations for AI interaction.
+- [ ] Allow annotated content to be used as AI context.
+
+### Region-Based Conversation
+
+- [ ] Add PDF region selection.
+- [ ] Send selected region as AI context.
+- [ ] Support region-based Q&A.
+- [ ] Evaluate OCR or image model support if needed.
+
+### API Model Support
+
+- [ ] Keep support for custom API configuration.
+- [ ] Add public/shared API option.
+- [ ] Add provider selection UI.
+- [ ] Add default public model configuration.
+- [ ] Add fallback behavior if public API fails.
+
+---
+
+## Additional Notes
+
+This issue can later be split into multiple smaller issues once implementation begins.  
+For now, it serves as a high-level tracking issue for the next stage of product improvement.
