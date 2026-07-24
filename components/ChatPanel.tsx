@@ -7,6 +7,7 @@ import ContextSelector from './ContextSelector'
 import MessageTree from './MessageTree'
 import BranchMap from './BranchMap'
 import type { ContextType, ContextPayload } from '@/lib/contextBuilder'
+import type { ViewMode } from './ViewControls'
 
 interface ChatPanelProps {
   documentId: string
@@ -16,6 +17,8 @@ interface ChatPanelProps {
   selectedText: string | null
   activeMessageId?: string | null
   onActiveMessageIdChange?: (id: string | null) => void
+  /** 当前视图模式，用于决定是否发送 PDF 切片 */
+  viewMode?: ViewMode
 }
 
 export default function ChatPanel({
@@ -25,7 +28,8 @@ export default function ChatPanel({
   totalPages,
   selectedText,
   activeMessageId: externalActiveMessageId,
-  onActiveMessageIdChange
+  onActiveMessageIdChange,
+  viewMode = 'full'
 }: ChatPanelProps) {
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
   const [answerDepth, setAnswerDepth] = useState<AnswerDepth>('standard')
@@ -36,6 +40,10 @@ export default function ChatPanel({
   const [error, setError] = useState<string | null>(null)
   const [internalActiveMessageId, setInternalActiveMessageId] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  // PDF 切片传输开关（仅 full 视图有效；chat-only 自动禁用）
+  const [pdfContextEnabled, setPdfContextEnabled] = useState(true)
+  // Python 计算模式开关
+  const [pythonModeEnabled, setPythonModeEnabled] = useState(false)
 
   // 流式输出相关状态
   const [streaming, setStreaming] = useState(false)          // 是否正在流式生成
@@ -51,6 +59,11 @@ export default function ChatPanel({
     setInternalActiveMessageId(id)
     onActiveMessageIdChange?.(id)
   }
+
+  // chat-only 视图自动禁用 PDF 切片；full 视图由 pdfContextEnabled 开关决定
+  const isChatOnly = viewMode === 'chat-only'
+  const usePdfContext = !isChatOnly && pdfContextEnabled
+  const effectiveContextType: ContextType = usePdfContext ? contextType : 'none'
 
   // 从 localStorage 加载 answerDepth
   useEffect(() => {
@@ -147,11 +160,12 @@ export default function ChatPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId,
-          parentId: activeMessageId, // 从当前活动节点继续
+          parentId: activeMessageId,
           question: questionText,
-          contextType,
-          contextPayload: finalPayload,
-          aiConfig
+          contextType: effectiveContextType,
+          contextPayload: usePdfContext ? finalPayload : {},
+          aiConfig,
+          pythonModeEnabled,
         }),
         signal: controller.signal
       })
@@ -270,15 +284,42 @@ export default function ChatPanel({
             externalAnswerDepth={answerDepth}
             onAnswerDepthChange={handleAnswerDepthChange}
           />
-          <ContextSelector
-            currentPage={currentPage}
-            totalPages={totalPages}
-            selectedText={selectedText}
-            onContextChange={(type, payload) => {
-              setContextType(type)
-              setContextPayload(payload)
-            }}
-          />
+          {/* chat-only：自动禁用 PDF 切片；full：显示开关 + 条件渲染 ContextSelector */}
+          {isChatOnly ? (
+            <div className="flex items-start gap-1.5 pt-1 text-xs text-gray-400">
+              <span>💬</span>
+              <span>仅对话历史模式<br />不传入 PDF 切片</span>
+            </div>
+          ) : (
+            <div>
+              <label className="flex items-center gap-2 mb-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={pdfContextEnabled}
+                  onChange={(e) => setPdfContextEnabled(e.target.checked)}
+                  className="cursor-pointer accent-blue-600"
+                />
+                <span className={`text-xs font-semibold ${pdfContextEnabled ? 'text-black' : 'text-gray-400'}`}>
+                  传入 PDF 切片
+                </span>
+              </label>
+              {pdfContextEnabled ? (
+                <ContextSelector
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  selectedText={selectedText}
+                  onContextChange={(type, payload) => {
+                    setContextType(type)
+                    setContextPayload(payload)
+                  }}
+                />
+              ) : (
+                <div className="text-xs text-gray-400">
+                  仅依赖对话历史（含历史中的 PDF 内容）
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -306,6 +347,7 @@ export default function ChatPanel({
                 activeMessageId={activeMessageId}
                 onContinueFrom={handleContinueFrom}
                 refreshTrigger={refreshTrigger}
+                pythonModeEnabled={pythonModeEnabled}
               />
 
               {/* 乐观显示：用户提问气泡（流式期间，DB 消息刷新前） */}
@@ -369,8 +411,8 @@ export default function ChatPanel({
                 </div>
               )}
 
-              {/* 回复深度快捷切换 */}
-              <div className="mb-3 flex flex-wrap items-center gap-2">
+              {/* 回复深度快捷切换 + Python 计算模式 */}
+              <div className="mb-3 flex flex-wrap items-center gap-3">
                 <span className="text-xs text-slate-600 font-medium">回复深度</span>
                 <div className="flex gap-1">
                   {[
@@ -391,6 +433,22 @@ export default function ChatPanel({
                     </button>
                   ))}
                 </div>
+
+                {/* 分隔线 */}
+                <span className="text-gray-300">|</span>
+
+                {/* Python 计算模式开关 */}
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={pythonModeEnabled}
+                    onChange={(e) => setPythonModeEnabled(e.target.checked)}
+                    className="cursor-pointer accent-green-600"
+                  />
+                  <span className={`text-xs font-medium ${pythonModeEnabled ? 'text-green-700' : 'text-slate-500'}`}>
+                    🐍 Python
+                  </span>
+                </label>
               </div>
 
               <div className="flex gap-2 flex-1">
@@ -400,7 +458,7 @@ export default function ChatPanel({
                   onKeyPress={handleKeyPress}
                   placeholder="输入你的问题... (Enter 发送, Shift+Enter 换行)"
                   disabled={streaming}
-                  className="flex-1 px-3 py-2 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                  className="flex-1 px-3 py-2 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 text-black"
                   rows={3}
                 />
                 {streaming ? (
@@ -422,8 +480,13 @@ export default function ChatPanel({
                 )}
               </div>
 
-              <div className="mt-2 text-xs text-black">
-                当前上下文：{contextType}
+              <div className="mt-2 text-xs text-gray-500">
+                {isChatOnly
+                  ? '模式：仅对话历史'
+                  : usePdfContext
+                    ? `上下文：${contextType}`
+                    : '模式：仅对话历史（PDF 切片已关闭）'
+                }
               </div>
             </div>
           </Panel>

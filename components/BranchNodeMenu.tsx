@@ -9,6 +9,7 @@ interface BranchNodeMenuProps {
   currentColor: string
   onRename: (messageId: string, displayName: string) => void
   onSetColor: (messageId: string, color: string) => void
+  onDelete: (messageId: string, mode: 'node' | 'subtree') => void
   onClose: () => void
   position: { x: number; y: number }
 }
@@ -31,6 +32,7 @@ export default function BranchNodeMenu({
   currentColor,
   onRename,
   onSetColor,
+  onDelete,
   onClose,
   position
 }: BranchNodeMenuProps) {
@@ -47,6 +49,17 @@ export default function BranchNodeMenu({
   const handleColorSelect = (color: string) => {
     onSetColor(userMessageId, color)
     onClose()
+  }
+
+  const handleDelete = (mode: 'node' | 'subtree') => {
+    const confirmMsg = mode === 'node'
+      ? '确定删除此节点？子节点将挂到父节点下。'
+      : '确定删除此节点及其所有子分支？此操作不可恢复。'
+
+    if (confirm(confirmMsg)) {
+      onDelete(userMessageId, mode)
+      onClose()
+    }
   }
 
   return (
@@ -135,6 +148,28 @@ export default function BranchNodeMenu({
                 清除颜色
               </button>
             )}
+
+            {/* 删除选项 */}
+            <div className="border-t border-gray-200">
+              <button
+                onClick={() => handleDelete('node')}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-orange-600"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>删除节点</span>
+              </button>
+              <button
+                onClick={() => handleDelete('subtree')}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>删除分支</span>
+              </button>
+            </div>
           </>
         )}
       </div>

@@ -14,17 +14,42 @@ services:
       - DATABASE_URL=file:/app/data/dev.db
       - AUTH_SECRET=${AUTH_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - PYTHON_RUNNER_URL=http://python-runner:8001
     volumes:
-      # 持久化数据库
       - ./data:/app/data
-      # 持久化上传文件
       - ./uploads:/app/public/uploads
+    depends_on:
+      - python-runner
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/auth/signin"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Python 代码执行服务
+  # 推荐运行时安全限制：
+  #   --memory="512m" --cpus="1.0" --pids-limit=100
+  #   --read-only --tmpfs /tmp:rw,noexec,nosuid,size=100m
+  python-runner:
+    build:
+      context: ./services/python-runner
+      dockerfile: Dockerfile
+    container_name: pdfread-python-runner
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 100
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Nginx 反向代理（可选）
   nginx:

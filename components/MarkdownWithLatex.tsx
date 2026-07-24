@@ -5,13 +5,19 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
 import 'katex/dist/katex.min.css'
+import ExecutableCodeBlock from './ExecutableCodeBlock'
 
 interface MarkdownWithLatexProps {
   content: string
   className?: string
+  pythonModeEnabled?: boolean
 }
 
-export default function MarkdownWithLatex({ content, className = '' }: MarkdownWithLatexProps) {
+export default function MarkdownWithLatex({
+  content,
+  className = '',
+  pythonModeEnabled = false,
+}: MarkdownWithLatexProps) {
   // 预处理：处理各种 LaTeX 格式
   const preprocessedContent = content
     // 1. 处理 ```latex 代码块 -> 块级公式
@@ -36,17 +42,27 @@ export default function MarkdownWithLatex({ content, className = '' }: MarkdownW
 
             const match = /language-(\w+)/.exec(className || '')
             const inline = !match
+            const language = match ? match[1] : ''
 
-            return inline ? (
+            // 块级代码
+            if (!inline) {
+              const codeString = String(children).replace(/\n$/, '')
+
+              // 所有块级代码都用 ExecutableCodeBlock（含 Copy；Python+模式开启时显示 Run）
+              return (
+                <ExecutableCodeBlock
+                  code={codeString}
+                  language={language}
+                  pythonModeEnabled={pythonModeEnabled}
+                />
+              )
+            }
+
+            // 行内代码
+            return (
               <code className="px-1 py-0.5 bg-gray-100 rounded text-sm font-mono text-gray-800" {...props}>
                 {children}
               </code>
-            ) : (
-              <pre className="bg-gray-100 rounded p-3 overflow-x-auto my-2">
-                <code className={`text-sm font-mono text-gray-800 ${className}`} {...props}>
-                  {children}
-                </code>
-              </pre>
             )
           },
           // 段落间距

@@ -10,13 +10,15 @@ interface MessageTreeProps {
   activeMessageId: string | null
   onContinueFrom: (messageId: string) => void
   refreshTrigger?: number
+  pythonModeEnabled?: boolean
 }
 
 export default function MessageTree({
   conversationId,
   activeMessageId,
   onContinueFrom,
-  refreshTrigger
+  refreshTrigger,
+  pythonModeEnabled = false,
 }: MessageTreeProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
@@ -93,6 +95,24 @@ export default function MessageTree({
     }
   }
 
+  const handleDelete = async (messageId: string) => {
+    try {
+      const response = await fetch(`/api/messages/${messageId}?mode=node`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await loadMessages()
+      } else {
+        const data = await response.json()
+        alert(`删除失败: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('删除消息失败:', error)
+      alert('删除失败')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-black">
@@ -117,6 +137,8 @@ export default function MessageTree({
           <MessageBubble
             message={message}
             onContinueFrom={onContinueFrom}
+            onDelete={handleDelete}
+            pythonModeEnabled={pythonModeEnabled}
           />
         </div>
       ))}

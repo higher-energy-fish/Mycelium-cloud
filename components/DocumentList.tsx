@@ -16,9 +16,29 @@ export default function DocumentList() {
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
 
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    docId: string
+    docName: string
+  } | null>(null)
+
+  // 重命名状态
+  const [renaming, setRenaming] = useState<string | null>(null)
+
   useEffect(() => {
     loadDocuments()
   }, [])
+
+  // 点击其他地方关闭右键菜单
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null)
+    if (contextMenu) {
+      document.addEventListener('click', handleClick)
+      return () => document.removeEventListener('click', handleClick)
+    }
+  }, [contextMenu])
 
   const loadDocuments = async () => {
     try {
@@ -63,6 +83,51 @@ export default function DocumentList() {
     loadDocuments()
   }
 
+  const handleContextMenu = (e: React.MouseEvent, doc: Document) => {
+    e.preventDefault()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      docId: doc.id,
+      docName: doc.originalName
+    })
+  }
+
+  const handleRename = async () => {
+    if (!contextMenu) return
+
+    const newName = prompt('输入新文件名：', contextMenu.docName)
+    if (!newName || !newName.trim() || newName === contextMenu.docName) {
+      setContextMenu(null)
+      return
+    }
+
+    setRenaming(contextMenu.docId)
+    setContextMenu(null)
+
+    try {
+      const response = await fetch(`/api/documents/${contextMenu.docId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ originalName: newName.trim() })
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || '重命名失败')
+
+      // 更新本地列表
+      setDocuments(documents.map(doc =>
+        doc.id === contextMenu.docId
+          ? { ...doc, originalName: data.document.originalName }
+          : doc
+      ))
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '重命名失败')
+    } finally {
+      setRenaming(null)
+    }
+  }
+
   return (
     <>
       <div className="mb-12">
@@ -79,6 +144,7 @@ export default function DocumentList() {
               <div
                 key={doc.id}
                 className="relative group p-4 bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
+                onContextMenu={(e) => handleContextMenu(e, doc)}
               >
                 <Link
                   href={`/documents/${doc.id}`}
@@ -123,6 +189,25 @@ export default function DocumentList() {
       ) : (
         <div className="text-center py-8 text-black">
           还没有上传文档，点击上方上传按钮开始
+        </div>
+      )}
+
+      {/* 右键菜单 */}
+      {contextMenu && (
+        <div
+          className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={handleRename}
+            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            重命名
+          </button>
         </div>
       )}
     </>

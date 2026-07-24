@@ -1,7 +1,7 @@
 import { prisma } from './prisma'
 import type { AnswerDepth } from './aiClient'
 
-export type ContextType = 'current_page' | 'surrounding_pages' | 'selected_text' | 'page_range'
+export type ContextType = 'current_page' | 'surrounding_pages' | 'selected_text' | 'page_range' | 'none'
 
 export interface ContextPayload {
   // current_page
@@ -121,6 +121,12 @@ export async function buildContext(
       pages = `第 ${payload.startPage}-${payload.endPage} 页`
       break
 
+    case 'none':
+      // 不附加 PDF 内容，AI 仅依赖对话历史
+      contextText = ''
+      pages = ''
+      break
+
     default:
       throw new Error(`不支持的上下文类型: ${contextType}`)
   }
@@ -169,7 +175,26 @@ export function buildAIPrompt(
 - 不要担心回复过长，深度优先`
   }
 
-  const systemPrompt = `你是一个专业的学术 PDF 深度解析助手。你的专长是帮助研究者深入理解复杂的学术文献。
+  // 当 contextType 为 'none' 时，不附加 PDF 切片，AI 仅依赖对话历史
+  const isNoneContext = context.contextType === 'none'
+
+  const systemPrompt = isNoneContext
+    ? `你是一个专业的学术 PDF 深度解析助手。你的专长是帮助研究者深入理解复杂的学术文献。
+
+本次消息**未附加新的 PDF 切片**。请**仅基于对话历史**来回答——历史消息中可能已包含此前传入的 PDF 内容，你可以引用这些内容。
+
+回答策略：
+- 基于对话历史中的内容回答，不要凭空捏造 PDF 细节
+- 如果历史中没有足够信息，请明确告知用户需要提供具体页面内容
+
+${depthInstructions[answerDepth]}
+
+LaTeX 公式输出规范同标准模式，请遵循。
+
+重要规则：
+- 不要假装看到了 PDF 内容，只能看到对话历史
+- 如需引用具体内容，请注明来自历史消息中的哪次对话`
+    : `你是一个专业的学术 PDF 深度解析助手。你的专长是帮助研究者深入理解复杂的学术文献。
 
 你有两种信息来源：
 1. **聊天历史**：你可以看到之前的对话内容，可以回答关于对话历史的问题
@@ -292,7 +317,9 @@ LaTeX 公式输出规范：
 - 在引用 PDF 内容时，注明具体页码
 - 保持客观、准确和学术性`
 
-  const userPrompt = `
+  const userPrompt = isNoneContext
+    ? `${userQuestion}`
+    : `
 【当前 PDF 上下文】
 文档：${documentTitle}
 上下文类型：${context.contextType}

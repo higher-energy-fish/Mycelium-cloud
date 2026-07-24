@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
       question,
       contextType,
       contextPayload,
-      aiConfig
+      aiConfig,
+      pythonModeEnabled = false,
     }: {
       conversationId: string
       parentId: string | null
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
       contextType: ContextType
       contextPayload: ContextPayload
       aiConfig: AIConfig
+      pythonModeEnabled?: boolean
     } = body
 
     // 验证参数
@@ -84,23 +86,69 @@ export async function POST(request: NextRequest) {
       aiConfig.answerDepth
     )
 
+    // Python 计算模式：向 system prompt 追加能力说明
+    const PYTHON_CAPABILITIES_PROMPT = `
+---
+【Python 计算环境】
+当前对话已启用 Python 计算模式。前端可执行 Python 代码块，你可以在适合时生成代码辅助计算。
+
+可用库（已预导入）：
+- numpy (as np)      — 数值计算、线性代数、矩阵运算
+- scipy              — 科学计算、优化、积分、信号处理
+- sympy              — 符号数学、代数推导、解方程
+- pandas (as pd)     — 数据处理、表格运算
+- matplotlib.pyplot (as plt) — 绘图、可视化
+- seaborn (as sns)   — 统计可视化、矩阵热图
+- pyscf              — 量子化学计算（HF、DFT、分子积分）
+
+通用代码规则：
+- 代码块必须使用 \`\`\`python 标记
+- 代码应自包含、简洁，库已预导入（显式 import 也被支持）
+- 不要访问文件系统、网络、环境变量，不要执行 shell 命令
+- 避免长时间运行的循环（超时限制为 15 秒）
+- matplotlib / seaborn 图像会自动捕获并显示（无需 plt.show()）
+
+seaborn 热图规则：
+- 仅当用户明确要求热图、heatmap、可视化矩阵或查看矩阵结构时才使用
+- 小型/中型矩阵优先使用 seaborn.heatmap
+- 小矩阵且数值重要时使用 annot=True；大矩阵不要用 annot=True
+- 同时包含正负值的矩阵：使用 cmap="coolwarm", center=0
+- 非负矩阵：使用 cmap="viridis"
+- 图像需包含 title、axis labels、colorbar
+- 不要默认为所有矩阵自动生成热图
+
+PySCF 使用规则：
+- 仅当用户明确要求量子化学计算、Hartree-Fock、DFT、分子轨道、基组、积分矩阵、Fock 矩阵、密度矩阵、重叠矩阵等内容时才使用
+- 示例保持轻量：优先用 H2、HeH+、LiH、H2O 等小分子
+- 默认使用 sto-3g 基组，除非用户明确要求其他基组
+- 不要默认运行昂贵计算，不要生成大体系或长时间运行的代码
+
+matplotlib 数学文本（mathtext）规则：
+- matplotlib 默认使用 mathtext，不是完整 LaTeX，很多命令不被支持
+- 在 title、legend、xlabel/ylabel、annotate 等文本中使用数学表达式时，必须用 mathtext 兼容写法
+- \\mathcal 等命令的参数必须加花括号：写成 \\mathcal{K}，绝不要写成 \\mathcal K
+- 所有含数学表达式的字符串必须用 raw string（前缀 r），例如 r"$x_1 \\in x_0 + \\mathcal{K}_1$"
+- 优先使用简单稳定的命令：\\alpha \\beta \\gamma \\lambda \\mu、\\in \\subset \\subseteq、\\sum \\prod、\\mathbf{x} \\mathrm{span} \\mathcal{K}
+- 避免使用 mathtext 不支持/不稳定的命令：\\operatorname \\mathscr \\bm \\boldsymbol \\text \\dfrac \\tfrac
+- 不确定某命令是否受支持时，改用普通文本或更简单的 mathtext
+- 不要启用 usetex=True（环境未安装完整 LaTeX）
+
+  错误示例：r"$x_1 \\in x_0+\\mathcal K_1$"   ← \\mathcal 后缺花括号，会报 ParseFatalException
+  正确示例：r"$x_1 \\in x_0 + \\mathcal{K}_1$"
+`
+
+    const systemPromptWithPython = pythonModeEnabled
+      ? prompts.systemPrompt + PYTHON_CAPABILITIES_PROMPT
+      : prompts.systemPrompt
+
     // 6. 构建完整的消息数组
     const messages: Array<{
       role: 'user' | 'assistant' | 'system'
       content: string
     }> = [
-      // System prompt（包含 PDF 上下文）
-      {
-        role: 'system',
-        content: prompts.systemPrompt
-      },
-      // 历史对话
+      { role: 'system', content: systemPromptWithPython },
       ...messagesToAIFormat(branchHistory),
-      // 当前用户问题（包含 PDF 上下文信息）
-      {
-        role: 'user',
-        content: prompts.userPrompt
-      }
+      { role: 'user', content: prompts.userPrompt }
     ]
 
     console.log('发送给 AI 的消息数量:', messages.length)

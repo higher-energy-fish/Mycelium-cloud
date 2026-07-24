@@ -51,6 +51,44 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { error, user } = await requireAuth()
+  if (error) return error
+
+  try {
+    const { id } = await params
+    const body = await request.json()
+    const { originalName } = body
+
+    if (!originalName || typeof originalName !== 'string' || !originalName.trim()) {
+      return NextResponse.json({ error: '文件名不能为空' }, { status: 400 })
+    }
+
+    const document = await prisma.pdfDocument.findUnique({ where: { id } })
+
+    if (!document) {
+      return NextResponse.json({ error: '文档不存在' }, { status: 404 })
+    }
+
+    if (document.userId !== user!.id) {
+      return NextResponse.json({ error: '无权修改该文档' }, { status: 403 })
+    }
+
+    const updated = await prisma.pdfDocument.update({
+      where: { id },
+      data: { originalName: originalName.trim() }
+    })
+
+    return NextResponse.json({ document: updated })
+  } catch (error) {
+    console.error('重命名文档失败:', error)
+    return NextResponse.json({ error: '重命名失败' }, { status: 500 })
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

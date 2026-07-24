@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { Message } from '@prisma/client'
 import { buildConversationTurnTree, type ConversationTurnNode } from '@/lib/conversationTurns'
+import BranchNodeMenu from './BranchNodeMenu'
 
 interface BranchMapFullscreenProps {
   conversationId: string
@@ -24,6 +25,10 @@ export default function BranchMapFullscreen({
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [turnTree, setTurnTree] = useState<ConversationTurnNode[]>([])
+  const [contextMenu, setContextMenu] = useState<{
+    turn: ConversationTurnNode
+    position: { x: number; y: number }
+  } | null>(null)
 
   // 加载消息
   useEffect(() => {
@@ -59,6 +64,61 @@ export default function BranchMapFullscreen({
     onSwitchToChatView()
   }
 
+  const handleContextMenu = (turn: ConversationTurnNode, event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setContextMenu({
+      turn,
+      position: { x: event.clientX, y: event.clientY }
+    })
+  }
+
+  const handleUpdateMeta = async (messageId: string, updates: { displayName?: string; color?: string | undefined }) => {
+    try {
+      const response = await fetch(`/api/messages/${messageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      })
+
+      if (response.ok) {
+        await loadMessages()
+      } else {
+        const data = await response.json()
+        alert(`更新失败: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('更新消息元数据失败:', error)
+      alert('更新失败')
+    }
+  }
+
+  const handleRename = (messageId: string, displayName: string) => {
+    handleUpdateMeta(messageId, { displayName })
+  }
+
+  const handleSetColor = (messageId: string, color: string) => {
+    handleUpdateMeta(messageId, { color: color || undefined })
+  }
+
+  const handleDelete = async (messageId: string, mode: 'node' | 'subtree') => {
+    try {
+      const response = await fetch(`/api/messages/${messageId}?mode=${mode}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await loadMessages()
+      } else {
+        const data = await response.json()
+        alert(`删除失败: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('删除消息失败:', error)
+      alert('删除失败')
+    }
+  }
+
   // 计算总节点数
   const countNodes = (nodes: ConversationTurnNode[]): number => {
     return nodes.reduce((sum, node) => {
@@ -82,6 +142,7 @@ export default function BranchMapFullscreen({
             hover:shadow-md transition-shadow cursor-pointer
           `}
           onClick={() => handleNodeClick(turn.assistantMessage?.id || turn.userMessage.id)}
+          onContextMenu={(e) => handleContextMenu(turn, e)}
         >
           {/* User 消息 */}
           <div className="mb-3">
@@ -178,6 +239,21 @@ export default function BranchMapFullscreen({
           {turnTree.map(turn => renderTurnNode(turn, 0))}
         </div>
       </div>
+
+      {/* 右键菜单 */}
+      {contextMenu && (
+        <BranchNodeMenu
+          nodeId={contextMenu.turn.id}
+          userMessageId={contextMenu.turn.userMessage.id}
+          currentDisplayName={contextMenu.turn.displayName || ''}
+          currentColor={contextMenu.turn.color || ''}
+          onRename={handleRename}
+          onSetColor={handleSetColor}
+          onDelete={handleDelete}
+          onClose={() => setContextMenu(null)}
+          position={contextMenu.position}
+        />
+      )}
     </div>
   )
 }

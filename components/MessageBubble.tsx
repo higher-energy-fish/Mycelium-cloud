@@ -7,11 +7,15 @@ import MarkdownWithLatex from './MarkdownWithLatex'
 interface MessageBubbleProps {
   message: Message
   onContinueFrom: (messageId: string) => void
+  onDelete?: (messageId: string) => void
+  pythonModeEnabled?: boolean
 }
 
 export default function MessageBubble({
   message,
-  onContinueFrom
+  onContinueFrom,
+  onDelete,
+  pythonModeEnabled = false,
 }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
@@ -34,6 +38,13 @@ export default function MessageBubble({
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('复制失败:', err)
+    }
+  }
+
+  // 删除消息
+  const handleDelete = () => {
+    if (confirm('确定删除此消息？子节点将挂到父节点下。')) {
+      onDelete?.(message.id)
     }
   }
 
@@ -76,6 +87,7 @@ export default function MessageBubble({
           <MarkdownWithLatex
             content={message.content}
             className="text-sm whitespace-pre-wrap break-words"
+            pythonModeEnabled={pythonModeEnabled}
           />
 
           {/* 上下文信息（仅用户消息） */}
@@ -113,12 +125,32 @@ export default function MessageBubble({
 
       {/* 操作按钮（仅 assistant 消息） */}
       {!isUser && (
-        <div className="flex justify-start mt-2">
+        <div className="flex justify-start gap-2 mt-2">
           <button
             onClick={() => onContinueFrom(message.id)}
             className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
           >
             从这里继续对话
+          </button>
+          {onDelete && (
+            <button
+              onClick={handleDelete}
+              className="text-xs px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded transition-colors"
+            >
+              删除
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 用户消息的删除按钮 */}
+      {isUser && onDelete && (
+        <div className="flex justify-end mt-2">
+          <button
+            onClick={handleDelete}
+            className="text-xs px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded transition-colors"
+          >
+            删除
           </button>
         </div>
       )}

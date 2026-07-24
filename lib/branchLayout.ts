@@ -225,6 +225,32 @@ export function buildSmoothEdgePath(edge: Edge): string {
 /**
  * 获取节点颜色样式
  */
+// SVG 节点专用配色：返回真实 hex，供 <rect> 的 fill/stroke 使用。
+// SVG 图形无法用 Tailwind 的 bg-* 类（那是 CSS background-color），必须用 fill/stroke。
+// 默认底色为浅色卡片，绝不 fallback 到 currentColor（避免继承页面前景色变黑）。
+export function getNodeSvgColors(
+  color: string | null,
+  isActive: boolean
+): { fill: string; stroke: string } {
+  // 每种颜色：默认底(50) / 高亮底(200) / 边框(500~600)
+  const map: Record<string, { base: string; active: string; stroke: string }> = {
+    blue:   { base: '#eff6ff', active: '#bfdbfe', stroke: '#2563eb' },
+    green:  { base: '#f0fdf4', active: '#bbf7d0', stroke: '#16a34a' },
+    yellow: { base: '#fefce8', active: '#fef08a', stroke: '#ca8a04' },
+    purple: { base: '#faf5ff', active: '#e9d5ff', stroke: '#9333ea' },
+    red:    { base: '#fef2f2', active: '#fecaca', stroke: '#dc2626' },
+    orange: { base: '#fff7ed', active: '#fed7aa', stroke: '#ea580c' },
+    cyan:   { base: '#ecfeff', active: '#a5f3fc', stroke: '#0891b2' },
+    pink:   { base: '#fdf2f8', active: '#fbcfe8', stroke: '#db2777' },
+  }
+  // 默认（无 color）使用蓝白配色
+  const c = (color && map[color]) || { base: '#eff6ff', active: '#bfdbfe', stroke: '#3b82f6' }
+  return {
+    fill: isActive ? c.active : c.base,
+    stroke: c.stroke,
+  }
+}
+
 export function getNodeColorClasses(
   color: string | null,
   isActive: boolean

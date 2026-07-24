@@ -71,3 +71,57 @@ export async function PATCH(
     )
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { error, user } = await requireAuth()
+  if (error) return error
+
+  try {
+    const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const mode = searchParams.get('mode') || 'node' // 'node' | 'subtree'
+
+    // 检查消息是否存在并验证所有权
+    const message = await prisma.message.findUnique({
+      where: { id },
+      include: {
+        conversation: {
+          include: { document: true }
+        }
+      }
+    })
+
+    if (!message) {
+      return NextResponse.json({ error: '消息不存在' }, { status: 404 })
+    }
+
+    if (message.conversation.document.userId !== user!.id) {
+      return NextResponse.json({ error: '无权删除该消息' }, { status: 403 })
+    }
+
+    if (mode === 'subtree') {
+      // 删除整个子树（包括当前节点）- Prisma cascade 自动处理
+      await prisma.message.delete({ where: { id } })
+    } else {
+      // 仅删除当前节点，子节点重挂到父节点
+      // 1. 将所有子节点的 parentId 指向当前节点的 parentId
+      await prisma.message.updateMany({
+        where: { parentId: id },
+        data: { parentId: message.parentId }
+      })
+      // 2. 删除当前节点
+      await prisma.message.delete({ where: { id } })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('删除消息失败:', error)
+    return NextResponse.json(
+      { error: `删除消息失败: ${error instanceof Error ? error.message : '未知错误'}` },
+      { status: 500 }
+    )
+  }
+}

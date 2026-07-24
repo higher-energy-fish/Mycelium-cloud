@@ -6,7 +6,7 @@ import type { SortMode } from '@/lib/branchTree'
 import type { ConversationTurnNode } from '@/lib/conversationTurns'
 import type { PositionedTurnNode, LayoutResult } from '@/lib/branchLayout'
 import { buildConversationTurnTree, getTurnDisplayLabel } from '@/lib/conversationTurns'
-import { layoutTurnTree, buildSmoothEdgePath, getNodeColorClasses } from '@/lib/branchLayout'
+import { layoutTurnTree, buildSmoothEdgePath, getNodeColorClasses, getNodeSvgColors } from '@/lib/branchLayout'
 import BranchToolbar from './BranchToolbar'
 import BranchNodeMenu from './BranchNodeMenu'
 
@@ -153,6 +153,33 @@ export default function BranchMap({
     handleUpdateMeta(messageId, { color: color || undefined })
   }
 
+  const handleDelete = async (messageId: string, mode: 'node' | 'subtree') => {
+    try {
+      const response = await fetch(`/api/messages/${messageId}?mode=${mode}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        // 刷新消息列表
+        await loadMessages()
+        // 如果删除的是当前活动节点，清除活动状态
+        if (activeTurnId) {
+          const deletedTurn = findTurnByMessageId(turnTree, messageId)
+          if (deletedTurn && deletedTurn.id === activeTurnId) {
+            setActiveTurnId(null)
+            onSelectMessage('')
+          }
+        }
+      } else {
+        const data = await response.json()
+        alert(`删除失败: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('删除消息失败:', error)
+      alert('删除失败')
+    }
+  }
+
   // 辅助函数：从 turnTree 中查找 turn
   const findTurnByMessageId = (
     turns: ConversationTurnNode[],
@@ -228,6 +255,7 @@ export default function BranchMap({
               const isOnPath = layout.activePathIds.has(node.id)
               const label = getTurnDisplayLabel(node)
               const colorClasses = getNodeColorClasses(node.color, isActive)
+              const svgColors = getNodeSvgColors(node.color, isActive)
 
               return (
                 <g
@@ -239,15 +267,15 @@ export default function BranchMap({
                   className="cursor-pointer"
                   opacity={isOnPath || isActive ? 1 : 0.6}
                 >
-                  {/* 节点背景 */}
+                  {/* 节点背景 —— SVG 用 fill/stroke 真实色值，不能用 Tailwind bg-* */}
                   <rect
                     width={200}
                     height={60}
                     rx={8}
-                    fill="currentColor"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    className={`${colorClasses.bg} ${colorClasses.border} transition-all`}
+                    fill={svgColors.fill}
+                    stroke={svgColors.stroke}
+                    strokeWidth={isActive ? 2.5 : 2}
+                    className="transition-all"
                   />
 
                   {/* 节点标题 */}
@@ -277,6 +305,7 @@ export default function BranchMap({
           currentColor={contextMenu.node.color || ''}
           onRename={handleRename}
           onSetColor={handleSetColor}
+          onDelete={handleDelete}
           onClose={() => setContextMenu(null)}
           position={contextMenu.position}
         />

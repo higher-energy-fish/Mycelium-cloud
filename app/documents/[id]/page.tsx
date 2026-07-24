@@ -37,6 +37,12 @@ export default function DocumentPage() {
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null)
   const pdfViewerApiRef = useRef<PdfViewerApi | null>(null)
 
+  // 重命名状态
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const [renaming, setRenaming] = useState(false)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     loadDocument()
   }, [documentId])
@@ -105,6 +111,43 @@ export default function DocumentPage() {
     setActiveMessageId(null) // 切换对话时重置活动消息
   }
 
+  const startRename = () => {
+    setRenameValue(document?.originalName || '')
+    setIsRenaming(true)
+    setTimeout(() => renameInputRef.current?.select(), 0)
+  }
+
+  const handleRename = async () => {
+    if (!renameValue.trim() || renaming || renameValue === document?.originalName) {
+      setIsRenaming(false)
+      return
+    }
+
+    setRenaming(true)
+    try {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ originalName: renameValue.trim() })
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || '重命名失败')
+
+      setDocument(data.document)
+      setIsRenaming(false)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '重命名失败')
+    } finally {
+      setRenaming(false)
+    }
+  }
+
+  const cancelRename = () => {
+    setIsRenaming(false)
+    setRenameValue('')
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -124,8 +167,39 @@ export default function DocumentPage() {
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       {/* 顶部标题栏 */}
-      <div className="bg-white border-b px-4 py-3 flex items-center justify-between flex-shrink-0">
-        <h1 className="text-xl font-semibold truncate flex-1 min-w-0 text-gray-900">{document.originalName}</h1>
+      <div className="bg-white border-b px-4 py-3 flex items-center gap-3 flex-shrink-0">
+        <a
+          href="/"
+          className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-blue-600 hover:bg-blue-700 transition-colors"
+          title="返回主页"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="white" className="w-5 h-5">
+            <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
+          </svg>
+        </a>
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            type="text"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={handleRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleRename()
+              if (e.key === 'Escape') cancelRename()
+            }}
+            disabled={renaming}
+            className="flex-1 text-xl font-semibold px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-gray-900 disabled:bg-gray-100"
+          />
+        ) : (
+          <h1
+            onClick={startRename}
+            className="text-xl font-semibold truncate flex-1 min-w-0 text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+            title="点击重命名"
+          >
+            {document.originalName}
+          </h1>
+        )}
       </div>
 
       {/* 视图控制按钮 */}
@@ -178,6 +252,7 @@ export default function DocumentPage() {
                     selectedText={selectedText}
                     activeMessageId={activeMessageId}
                     onActiveMessageIdChange={setActiveMessageId}
+                    viewMode={viewMode}
                   />
                 </div>
               </Panel>

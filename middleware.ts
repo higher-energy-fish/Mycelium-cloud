@@ -38,6 +38,6 @@ export const config = {
      * - favicon.ico (favicon)
      * - public 文件夹中的文件
      */
-    '/((?!_next/static|_next/image|favicon.ico|uploads).*)',
+    '/((?!_next/static|_next/image|favicon.ico|uploads|backgrounds).*)',
   ],
 }
